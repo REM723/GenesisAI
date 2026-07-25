@@ -117,6 +117,18 @@ REGISTRY: dict[str, ProviderConfig] = {
         price_in_per_1k=0.002,
         price_out_per_1k=0.01,
     ),
+    # Groq — fast OpenAI-compatible inference (distinct from xAI "grok" above).
+    "groq": ProviderConfig(
+        name="groq",
+        base_url="https://api.groq.com/openai/v1",
+        model="llama-3.3-70b-versatile",
+        api_key_env="GROQ_API_KEY",
+        context_length=131072,
+        code_strength=8,
+        supports_tools=True,
+        price_in_per_1k=0.00059,
+        price_out_per_1k=0.00079,
+    ),
 }
 
 

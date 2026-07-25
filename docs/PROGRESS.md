@@ -121,6 +121,11 @@ against live Postgres. Migrations 0001+0002 apply up/down/up on a fresh DB (head
 **Notes:** chromadb resolved to 1.5.9 (>=0.5 allowed 1.x); test embedder subclasses
 `chromadb.api.types.EmbeddingFunction`. mypy skips numpy stubs (3.12 syntax) via override.
 
+**Post-Phase-2 addition (user request):** added **Groq** provider (`GROQ_API_KEY`,
+`llama-3.3-70b-versatile`) as one `REGISTRY` row — an 8th provider, distinct from xAI's
+`grok`. Divergence from SRS §4's 7-provider list, noted here; no new dependency (Groq is
+OpenAI-compatible via the existing adapter).
+
 ## Phase 4 — Prompt optimizer + loop engine ⏳ (next)
 
 **Goal (SRS §7 features, FR-06/FR-07, AC-01, NFR-02):** rewrite raw intent into model-aware

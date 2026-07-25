@@ -159,10 +159,11 @@ async def test_adding_provider_is_one_registry_row() -> None:
     assert result.provider == "cheapest"
 
 
-def test_real_registry_has_all_seven_providers() -> None:
+def test_real_registry_has_expected_providers() -> None:
     assert set(REGISTRY) == {
         "openai",
         "grok",
+        "groq",
         "gemini",
         "deepseek",
         "mistral",
