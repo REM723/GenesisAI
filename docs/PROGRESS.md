@@ -4,8 +4,9 @@
 Re-read this at the start of every session/phase. Update it at the end of every phase.
 Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks execution.
 
-**Last updated:** 2026-07-25 (end of Phase 2)
-**Current position:** Phase 2 complete and reviewed. Phase 3 not yet started.
+**Last updated:** 2026-07-26 (end of Phase 3)
+**Current position:** Phase 3 complete and reviewed. Phase 4 not yet started.
+**GitHub:** https://github.com/REM723/GenesisAI — one commit pushed per phase (no co-author trailer).
 
 ---
 
@@ -28,8 +29,8 @@ Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks exe
 | 0 | Foundation (monorepo, tooling, docker, CI) | ✅ Done |
 | 1 | Data layer + authentication | ✅ Done |
 | 2 | LLM router | ✅ Done |
-| 3 | Context memory | ⏳ Next |
-| 4 | Prompt optimizer + loop engine | ⬜ Not started |
+| 3 | Context memory | ✅ Done |
+| 4 | Prompt optimizer + loop engine | ⏳ Next |
 | 5 | Agent workflow (LangGraph) | ⬜ Not started |
 | 6 | API surface | ⬜ Not started |
 | 7 | Frontend | ⬜ Not started |
@@ -96,19 +97,42 @@ Full suite: 21 passed.
 **Deferred:** live provider smoke test (AC-05 "runs on ≥3 providers") is Phase 9; token→DB
 persistence is Phase 5.
 
-## Phase 3 — Context memory ⏳ (next)
+## Phase 3 — Context memory ✅
 
-**Goal (SRS §2/§3, AC-02):** per-project context store — relational records (requirements,
-decisions, artifacts) + vector recall over ChromaDB. One read/write interface agents use;
-no agent touches the DB or vector store directly. Lives in `packages/memory`.
+`packages/memory/genesis_memory`: `types.py` (ContextRecord/ContextKind), `vector.py`
+(`VectorStore` protocol + `ChromaVectorStore`), `memory.py` (`ContextMemory` + `RelationalStore`
+protocol). `apps/api`: `ContextItem` model + `ContextItemRepository` + migration `0002` +
+`app/memory_store.py` (`SqlContextStore`). Installable as `genesis_memory` (CI/Makefile
+updated).
 
-**Exit criteria:** a later agent retrieves a decision made by an earlier agent without it
-being re-supplied in the prompt (AC-02) — prove with a test.
+**Decisions:** one generic `context_items` table (kind ∈ {requirement,decision,artifact});
+Chroma built-in local embedding as the default, deterministic offline embedder injected in
+tests (no download, no live calls); single collection keyed by `project_id`/`kind` metadata;
+`ContextMemory` fans writes to relational (authoritative) + vector (recall), reads do vector
+search then hydrate records in similarity order. Dependency direction: `apps/api` →
+`genesis_memory` (SqlContextStore lives in api, implements the store protocol).
 
-**Likely open questions to raise at planning:** embedding model/source (needs a provider
-key vs. a local/deterministic embedder for tests); whether memory writes reuse the Phase-1
-tables (`documents`, plus a new decisions/requirements store) or a dedicated schema — a
-schema question to flag before migrating.
+**Verified:** AC-02 proven — `test_later_agent_recalls_earlier_decision` (real Chroma
+EphemeralClient) recalls an earlier "agent" decision from a query that never restates it;
+plus kind-filter, empty-read, and per-project isolation tests; `SqlContextStore` round-trip
+against live Postgres. Migrations 0001+0002 apply up/down/up on a fresh DB (head =
+`0002_context_items`). ruff/format/mypy strict clean (22 files). Full suite: 26 passed.
+
+**Notes:** chromadb resolved to 1.5.9 (>=0.5 allowed 1.x); test embedder subclasses
+`chromadb.api.types.EmbeddingFunction`. mypy skips numpy stubs (3.12 syntax) via override.
+
+## Phase 4 — Prompt optimizer + loop engine ⏳ (next)
+
+**Goal (SRS §7 features, FR-06/FR-07, AC-01, NFR-02):** rewrite raw intent into model-aware
+prompts; loop-refine against evaluation criteria until a quality threshold or an iteration
+cap; persist every iteration to `prompt_versions` with its score. p95 latency < 5s (NFR-02).
+
+**Exit criteria:** 20 sample ideas score above threshold (AC-01); version history complete +
+ordered; latency budget met under test load.
+
+**Likely questions at planning:** the scoring function — heuristic/rule-based (no model call,
+fast, deterministic, testable) vs. LLM-as-judge via the router (needs a key, slower); the
+"quality threshold" value; whether the optimizer lives in `packages/agents` or its own module.
 
 ---
 

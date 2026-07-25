@@ -24,6 +24,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 PROJECT_STATUSES = ("draft", "analyzing", "running", "completed", "failed")
 RUN_STATUSES = ("queued", "running", "succeeded", "failed", "timeout")
 USER_ROLES = ("admin", "member")  # §7 'owner' is per-project ownership via projects.user_id
+CONTEXT_KINDS = ("requirement", "decision", "artifact")  # context memory (Phase 3)
 
 
 class Base(DeclarativeBase):
@@ -164,4 +165,21 @@ class Log(Base):
     )
     event: Mapped[str] = mapped_column(String(128), nullable=False)
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = _created_at()
+
+
+class ContextItem(Base):
+    """Per-project context memory record (SRS §2, Phase 3). Relational half; the vector
+    half lives in Chroma keyed by this row's id."""
+
+    __tablename__ = "context_items"
+    __table_args__ = (CheckConstraint(f"kind IN {CONTEXT_KINDS}", name="ck_context_items_kind"),)
+
+    id: Mapped[uuid.UUID] = _pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = _created_at()

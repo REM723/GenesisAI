@@ -12,7 +12,7 @@ logs:
 
 ## Install deps
 install:
-	pip install -e apps/api -e packages/router -r requirements-dev.txt
+	pip install -e apps/api -e packages/router -e packages/memory -r requirements-dev.txt
 	pnpm install
 
 ## Dev servers (run in separate terminals)

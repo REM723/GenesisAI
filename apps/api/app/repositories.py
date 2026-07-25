@@ -11,7 +11,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ApiKey, Log, User
+from app.models import ApiKey, ContextItem, Log, User
 
 
 async def write_log(
@@ -64,3 +64,28 @@ class ApiKeyRepository:
             select(ApiKey).where(ApiKey.user_id == user_id, ApiKey.provider == provider)
         )
         return result.first()
+
+
+class ContextItemRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(
+        self,
+        *,
+        id: uuid.UUID,
+        project_id: uuid.UUID,
+        kind: str,
+        content: str,
+        meta: dict[str, Any] | None,
+    ) -> ContextItem:
+        item = ContextItem(id=id, project_id=project_id, kind=kind, content=content, meta=meta)
+        self._session.add(item)
+        await self._session.flush()
+        return item
+
+    async def get_many(self, ids: list[uuid.UUID]) -> Sequence[ContextItem]:
+        if not ids:
+            return []
+        result = await self._session.scalars(select(ContextItem).where(ContextItem.id.in_(ids)))
+        return result.all()
