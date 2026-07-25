@@ -1,0 +1,14 @@
+{
+  "name": "genesisai",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "pnpm --filter web lint",
+    "typecheck": "pnpm -r exec tsc --noEmit"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  }
+}

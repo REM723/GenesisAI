@@ -1,0 +1,51 @@
+# Local infra for GenesisAI: Postgres, Redis, ChromaDB (+ optional Ollama).
+# App services (api/web) run on the host via `make dev`. Defaults let this start with no .env.
+# Usage: docker compose -f docker/docker-compose.yml up -d   (or `make up`)
+name: genesisai
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-genesis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-genesis}
+      POSTGRES_DB: ${POSTGRES_DB:-genesis}
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-genesis}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  chroma:
+    image: chromadb/chroma:0.5.5
+    ports: ["8000:8000"]
+    volumes: [chromadata:/chroma/chroma]
+    healthcheck:
+      # ponytail: curl ships in the chroma image today; swap to a python check if a future tag drops it.
+      # v1 heartbeat for chroma 0.5.x (v2 lands in later tags).
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"] # opt-in: docker compose --profile ollama up
+    ports: ["11434:11434"]
+    volumes: [ollamadata:/root/.ollama]
+
+volumes:
+  pgdata:
+  chromadata:
+  ollamadata:
