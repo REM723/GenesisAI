@@ -35,5 +35,11 @@ follow_imports_for_stubs = true
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["apps/api/tests", "packages/router/tests", "packages/memory/tests", "tests"]
+testpaths = [
+    "apps/api/tests",
+    "packages/router/tests",
+    "packages/memory/tests",
+    "packages/agents/tests",
+    "tests",
+]
 asyncio_mode = "auto"

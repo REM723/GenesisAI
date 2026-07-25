@@ -4,8 +4,8 @@
 Re-read this at the start of every session/phase. Update it at the end of every phase.
 Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks execution.
 
-**Last updated:** 2026-07-26 (end of Phase 3)
-**Current position:** Phase 3 complete and reviewed. Phase 4 not yet started.
+**Last updated:** 2026-07-26 (end of Phase 4)
+**Current position:** Phase 4 complete and reviewed. Phase 5 not yet started.
 **GitHub:** https://github.com/REM723/GenesisAI — one commit pushed per phase (no co-author trailer).
 
 ---
@@ -30,8 +30,8 @@ Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks exe
 | 1 | Data layer + authentication | ✅ Done |
 | 2 | LLM router | ✅ Done |
 | 3 | Context memory | ✅ Done |
-| 4 | Prompt optimizer + loop engine | ⏳ Next |
-| 5 | Agent workflow (LangGraph) | ⬜ Not started |
+| 4 | Prompt optimizer + loop engine | ✅ Done |
+| 5 | Agent workflow (LangGraph) | ⏳ Next |
 | 6 | API surface | ⬜ Not started |
 | 7 | Frontend | ⬜ Not started |
 | 8 | Export + doc generation | ⬜ Not started |
@@ -126,18 +126,43 @@ against live Postgres. Migrations 0001+0002 apply up/down/up on a fresh DB (head
 `grok`. Divergence from SRS §4's 7-provider list, noted here; no new dependency (Groq is
 OpenAI-compatible via the existing adapter).
 
-## Phase 4 — Prompt optimizer + loop engine ⏳ (next)
+## Phase 4 — Prompt optimizer + loop engine ✅
 
-**Goal (SRS §7 features, FR-06/FR-07, AC-01, NFR-02):** rewrite raw intent into model-aware
-prompts; loop-refine against evaluation criteria until a quality threshold or an iteration
-cap; persist every iteration to `prompt_versions` with its score. p95 latency < 5s (NFR-02).
+`packages/agents/genesis_agents`: `scoring.py` (heuristic 0–1 scorer), `optimizer.py`
+(`PromptOptimizer.initial`/`improve`), `loop.py` (`LoopEngine.run` → ordered `Iteration`
+list). `apps/api`: `PromptRepository` + `PromptVersionRepository` + `app/prompt_service.py`
+(`optimize_and_persist` writes final prompt to `prompts`, each iteration to `prompt_versions`).
+Installable as `genesis_agents` (CI/Makefile/testpaths wired).
 
-**Exit criteria:** 20 sample ideas score above threshold (AC-01); version history complete +
-ordered; latency budget met under test load.
+**Decisions:** heuristic (rule-based) scoring + rule-based rewrite — deterministic, offline,
+no keys; threshold 0.8, iteration cap 6 (both configurable). `improve()` adds the highest-
+weight missing section each pass, so history is a genuine monotonic refinement.
+`PromptOptimizer.improve` is the seam for a future LLM rewriter. Pure logic in
+`packages/agents` (offline-testable); DB persistence isolated in `apps/api` (no schema change
+— reuses §5 `prompts`/`prompt_versions`).
 
-**Likely questions at planning:** the scoring function — heuristic/rule-based (no model call,
-fast, deterministic, testable) vs. LLM-as-judge via the router (needs a key, slower); the
-"quality threshold" value; whether the optimizer lives in `packages/agents` or its own module.
+**Verified:** AC-01 — all 20 sample ideas reach ≥0.8 within the cap; version history
+contiguous (1..n) and non-decreasing; iteration cap terminates a no-op optimizer; NFR-02 —
+p95 optimize latency ≪ 5s (heuristic, sub-ms); persistence test writes ordered history to
+`prompt_versions` against live Postgres. ruff/format/mypy strict clean (26 files). Full
+suite: 32 passed.
+
+## Phase 5 — Agent workflow (LangGraph) ⏳ (next)
+
+**Goal (SRS §6):** LangGraph state machine — PM → Architect → Backend → Frontend → QA →
+DevOps → Documentation, each with §6 inputs/outputs. Checkpoint after every step (resumable);
+per-agent timeouts; Code Reviewer gate after code gen (returns work once); stream progress
+over SSE at `GET /agents/runs/{run_id}/stream`. Uses the router (Phase 2), memory (Phase 3),
+and optimizer (Phase 4).
+
+**Exit criteria:** full run PM → Architect → Backend → QA → Docs (AC-03); interrupted run
+resumes without repeating steps; timed-out agent leaves partial artifacts, run marked
+`timeout`.
+
+**Open items to resolve at planning:** the **runs/exports table gap** finally bites here —
+resumable runs need a run-level record (agent_runs is per-agent). Will propose a `runs` table
+(migration 0003) + wire router token/cost persistence. Also: real LLM calls are mocked in
+tests; MVP path targets AC-03's PM→Architect→Backend→QA→Docs (QA included).
 
 ---
 

@@ -11,7 +11,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ApiKey, ContextItem, Log, User
+from app.models import ApiKey, ContextItem, Log, Prompt, PromptVersion, User
 
 
 async def write_log(
@@ -88,4 +88,38 @@ class ContextItemRepository:
         if not ids:
             return []
         result = await self._session.scalars(select(ContextItem).where(ContextItem.id.in_(ids)))
+        return result.all()
+
+
+class PromptRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(
+        self, *, project_id: uuid.UUID, type: str, content: str, score: float | None
+    ) -> Prompt:
+        prompt = Prompt(project_id=project_id, type=type, content=content, score=score)
+        self._session.add(prompt)
+        await self._session.flush()
+        return prompt
+
+
+class PromptVersionRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(
+        self, *, prompt_id: uuid.UUID, version: int, content: str, score: float | None
+    ) -> PromptVersion:
+        row = PromptVersion(prompt_id=prompt_id, version=version, content=content, score=score)
+        self._session.add(row)
+        await self._session.flush()
+        return row
+
+    async def list_for_prompt(self, prompt_id: uuid.UUID) -> Sequence[PromptVersion]:
+        result = await self._session.scalars(
+            select(PromptVersion)
+            .where(PromptVersion.prompt_id == prompt_id)
+            .order_by(PromptVersion.version)
+        )
         return result.all()

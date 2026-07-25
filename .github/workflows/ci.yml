@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -e apps/api -e packages/router -e packages/memory -r requirements-dev.txt
+      - run: pip install -e apps/api -e packages/router -e packages/memory -e packages/agents -r requirements-dev.txt
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy
