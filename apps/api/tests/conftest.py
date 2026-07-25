@@ -59,11 +59,20 @@ async def redis_client():
     await r.aclose()
 
 
+class _FakeRunner:
+    """Deterministic agent runner for API tests — no live model calls."""
+
+    async def run(self, agent: str, prompt: str) -> str:
+        return f"{agent}-output"
+
+
 @pytest.fixture
 async def client(engine, redis_client):
     app = create_app()
     app.state.sessionmaker = make_sessionmaker(engine)
     app.state.redis = redis_client
+    app.state.agent_runner = _FakeRunner()
+    app.state.background_tasks = set()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c

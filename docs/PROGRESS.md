@@ -4,8 +4,8 @@
 Re-read this at the start of every session/phase. Update it at the end of every phase.
 Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks execution.
 
-**Last updated:** 2026-07-26 (end of Phase 5)
-**Current position:** Phase 5 complete and reviewed. Phase 6 not yet started.
+**Last updated:** 2026-07-26 (end of Phase 6)
+**Current position:** Phase 6 complete and reviewed. Phase 7 not yet started.
 **GitHub:** https://github.com/REM723/GenesisAI — one commit pushed per phase (no co-author trailer).
 
 ---
@@ -32,8 +32,8 @@ Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks exe
 | 3 | Context memory | ✅ Done |
 | 4 | Prompt optimizer + loop engine | ✅ Done |
 | 5 | Agent workflow (LangGraph) | ✅ Done |
-| 6 | API surface | ⏳ Next |
-| 7 | Frontend | ⬜ Not started |
+| 6 | API surface | ✅ Done |
+| 7 | Frontend | ⏳ Next |
 | 8 | Export + doc generation | ⬜ Not started |
 | 9 | Hardening | ⬜ Not started |
 
@@ -149,46 +149,58 @@ suite: 32 passed.
 
 ## Phase 5 — Agent workflow (LangGraph) ✅
 
-`packages/agents/genesis_agents`: `agents.py` (7 AgentSpecs + `AgentRunner` protocol +
-`RouterAgentRunner`), `review.py` (Reviewer gate), `workflow.py` (LangGraph `StateGraph`,
-per-agent timeouts, conditional retry edges after backend/frontend, MemorySaver checkpointer).
-`apps/api`: `Run` model + `run_id` on `agent_runs` (migration `0003`), `RunRepository` +
-`AgentRunRepository`, `app/orchestrator.py` (drives the graph, persists steps, writes memory,
-publishes SSE, updates run status), `app/agents_api.py` (SSE `GET /agents/runs/{id}/stream`).
-Added `langgraph` dep (SRS-mandated).
+`packages/agents/genesis_agents`: `agents.py` (7 AgentSpecs + `AgentRunner` + `RouterAgentRunner`),
+`review.py`, `workflow.py` (LangGraph StateGraph, per-agent timeouts, retry edges after
+backend/frontend, MemorySaver). `apps/api`: `Run` model + `run_id` on `agent_runs` (migration
+`0003`), `RunRepository`/`AgentRunRepository`, `app/orchestrator.py`, `app/agents_api.py` (SSE).
+Added `langgraph`.
 
-**Decisions:** graph is DB-free; the orchestrator supplies an `on_event` callback that owns all
-side effects (agent_runs, memory, Redis SSE, run status). Resume via LangGraph checkpointer
-(thread = run_id). Reviewer returns work once (MAX_ATTEMPTS=2). SSE over Redis pub/sub channel
-`run:{id}`. Runner injected → tests fake it (no live calls); router-backed runner is the real path.
+**Decisions:** graph DB-free; orchestrator's injected `on_event` owns side effects (agent_runs,
+memory, Redis SSE, run status); resume via checkpointer (thread=run_id); reviewer returns work
+once (MAX_ATTEMPTS=2); SSE over Redis pub/sub; runner injected (faked in tests, no live calls).
 
-**Verified:** graph-level (offline) — AC-03 full run in order, resume skips completed steps,
-timeout raises + keeps partial, reviewer regenerates once. Orchestrator (live PG+Redis) —
-full run records all steps `succeeded` + run `succeeded`; timeout marks run `timeout` with
-partial `agent_runs` retained; SSE events (start/complete/run_*) published + consumed.
-Migrations 0001–0003 up/down/up clean (head `0003_runs`). ruff/format/mypy strict clean (31
-files). Full suite: 39 passed.
+**Verified:** graph-level AC-03/resume/timeout/reviewer offline; orchestrator (live PG+Redis)
+full run records steps+status, timeout marks run + keeps partial, SSE published/consumed.
+Migrations 0001–0003 up/down/up clean (head `0003_runs`). ruff/mypy strict clean. Suite: 39.
 
-**Resolved:** the long-standing runs-table gap (migration 0003: `runs` + `agent_runs.run_id`).
-**Still deferred:** `exports` table → Phase 8; router token/cost persistence (orchestrator
-writes `tokens=0` for now — wire real usage when the router-backed runner returns usage);
-cross-process resume needs a persistent LangGraph saver (MemorySaver is in-process; runs/
-agent_runs are the durable status of record).
+**Resolved:** runs-table gap (0003). **Deferred:** `exports` table → Phase 8; router token/cost
+persistence (orchestrator writes tokens=0 until the router-backed runner returns usage);
+cross-process resume needs a persistent LangGraph saver (MemorySaver is in-process).
 
-## Phase 6 — API surface ⏳ (next)
+## Phase 6 — API surface ✅
 
-**Goal (SRS §9):** implement every §9 endpoint with the conventions — bearer auth, `202 +
-run_id` for long ops, cursor pagination on lists, `422` field detail, Redis rate limiting per
-user + per IP. Endpoints: POST /projects, GET /projects/{id}, POST /prompts/generate, POST
-/agents/run, POST /code/review, POST /tests/generate, GET /exports/{id} (+ the SSE stream from
-Phase 5, + the /auth and /keys routes already built).
+`apps/api`: `app/ratelimit.py` (Redis fixed-window, per user+IP, 429+Retry-After),
+`app/pagination.py` (opaque keyset cursor), `app/projects_api.py`, `app/prompts_api.py`,
+`app/artifacts_api.py` (code/review, tests/generate, exports), `POST /agents/run` in
+`agents_api.py`; `ProjectRepository`/`GeneratedCodeRepository`/`DocumentRepository` + read
+methods; schemas for all §9 bodies. No migration (no schema change).
 
-**Exit criteria:** contract tests for every endpoint; OpenAPI matches §9; rate limiting returns
-`429` with `Retry-After`.
+**Decisions:** hand-rolled Redis rate limiting (no dep); `POST /agents/run` launches the
+orchestrator as a background asyncio task → `202 + run_id` (resume if run_id given); added
+`GET /projects` (list, cursor-paginated) as a documented §9 divergence for FR-02; `/code/review`
++ `/tests/generate` thin (reviewer / single QA call over stored code); `GET /exports/{id}` wired
+but `404` until Phase 8 packaging.
 
-**Open items at planning:** POST /agents/run wires the orchestrator as a background task (202 +
-run_id); cursor pagination format; rate-limit library vs. hand-rolled Redis token bucket
-(dep question).
+**Verified:** contract tests for every §9 endpoint (shapes/status/auth/422); pagination shape;
+`202 + run_id`; OpenAPI exposes all §9 paths; rate-limit counter blocks past limit and HTTP
+returns `429 + Retry-After`. ruff/mypy strict clean (36 files). Full suite: 47 passed.
+
+**Deferred:** real background job queue/worker (asyncio task for MVP; Redis queue is the
+upgrade); `/exports` behavior → Phase 8; wiring real provider keys for live `/agents/run`.
+
+## Phase 7 — Frontend ⏳ (next)
+
+**Goal (FR-02…FR-12):** Next.js web client — auth flows, project dashboard with status, create
+project from a plain-English idea, live run monitoring via the SSE stream, artifact preview,
+export download. shadcn/ui + Tailwind; explicit loading/empty/error states on every view.
+
+**Exit criteria:** the PRD §10 MVP walkthrough completes end-to-end in a browser (signup →
+add key → create project → analyze → optimize → run with live status → export `.zip`).
+
+**Open items at planning:** shared types generated from the backend OpenAPI vs. hand-written in
+`packages/shared`; auth token storage (httpOnly cookie vs. memory/localStorage); how much of the
+walkthrough is testable headless here vs. needs a browser. Export download depends on Phase 8 —
+the frontend button may lead to a "not ready" state until then.
 
 ---
 

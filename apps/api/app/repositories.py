@@ -6,16 +6,20 @@ Other tables get repositories when their phase uses them.
 
 import uuid
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
     AgentRun,
     ApiKey,
     ContextItem,
+    Document,
+    GeneratedCode,
     Log,
+    Project,
     Prompt,
     PromptVersion,
     Run,
@@ -134,6 +138,75 @@ class PromptVersionRepository:
         return result.all()
 
 
+class ProjectRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(self, *, user_id: uuid.UUID, name: str, idea: str) -> Project:
+        project = Project(user_id=user_id, name=name, idea=idea, status="draft")
+        self._session.add(project)
+        await self._session.flush()
+        return project
+
+    async def get_owned(self, project_id: uuid.UUID, user_id: uuid.UUID) -> Project | None:
+        project = await self._session.get(Project, project_id)
+        if project is None or project.user_id != user_id:
+            return None
+        return project
+
+    async def list_for_user(
+        self,
+        user_id: uuid.UUID,
+        *,
+        limit: int,
+        cursor: tuple[datetime, uuid.UUID] | None = None,
+    ) -> Sequence[Project]:
+        # keyset pagination on (created_at, id) descending.
+        query = select(Project).where(Project.user_id == user_id)
+        if cursor is not None:
+            ts, cid = cursor
+            query = query.where(
+                or_(
+                    Project.created_at < ts,
+                    and_(Project.created_at == ts, Project.id < cid),
+                )
+            )
+        query = query.order_by(Project.created_at.desc(), Project.id.desc()).limit(limit)
+        return (await self._session.scalars(query)).all()
+
+
+class GeneratedCodeRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(
+        self, *, project_id: uuid.UUID, path: str, language: str, content: str, version: int = 1
+    ) -> GeneratedCode:
+        row = GeneratedCode(
+            project_id=project_id, path=path, language=language, content=content, version=version
+        )
+        self._session.add(row)
+        await self._session.flush()
+        return row
+
+    async def list_for_project(self, project_id: uuid.UUID) -> Sequence[GeneratedCode]:
+        result = await self._session.scalars(
+            select(GeneratedCode).where(GeneratedCode.project_id == project_id)
+        )
+        return result.all()
+
+
+class DocumentRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list_for_project(self, project_id: uuid.UUID) -> Sequence[Document]:
+        result = await self._session.scalars(
+            select(Document).where(Document.project_id == project_id)
+        )
+        return result.all()
+
+
 class RunRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -146,6 +219,12 @@ class RunRepository:
 
     async def get(self, run_id: uuid.UUID) -> Run | None:
         return await self._session.get(Run, run_id)
+
+    async def latest_for_project(self, project_id: uuid.UUID) -> Run | None:
+        result = await self._session.scalars(
+            select(Run).where(Run.project_id == project_id).order_by(Run.created_at.desc()).limit(1)
+        )
+        return result.first()
 
     async def update_status(
         self,
