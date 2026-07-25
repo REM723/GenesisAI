@@ -25,6 +25,7 @@ PROJECT_STATUSES = ("draft", "analyzing", "running", "completed", "failed")
 RUN_STATUSES = ("queued", "running", "succeeded", "failed", "timeout")
 USER_ROLES = ("admin", "member")  # §7 'owner' is per-project ownership via projects.user_id
 CONTEXT_KINDS = ("requirement", "decision", "artifact")  # context memory (Phase 3)
+RUN_STATUSES_WORKFLOW = ("queued", "running", "succeeded", "failed", "timeout")  # runs (Phase 5)
 
 
 class Base(DeclarativeBase):
@@ -122,6 +123,9 @@ class AgentRun(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("runs.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     agent: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")
     input: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
@@ -166,6 +170,28 @@ class Log(Base):
     event: Mapped[str] = mapped_column(String(128), nullable=False)
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = _created_at()
+
+
+class Run(Base):
+    """Workflow run: one execution of the agent graph for a project (Phase 5).
+
+    Run-level record §5 lacks (agent_runs is per-agent); needed for resume + SSE by run_id.
+    """
+
+    __tablename__ = "runs"
+    __table_args__ = (CheckConstraint(f"status IN {RUN_STATUSES_WORKFLOW}", name="ck_runs_status"),)
+
+    id: Mapped[uuid.UUID] = _pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")
+    current_agent: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
 
 class ContextItem(Base):

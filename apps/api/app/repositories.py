@@ -11,7 +11,16 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ApiKey, ContextItem, Log, Prompt, PromptVersion, User
+from app.models import (
+    AgentRun,
+    ApiKey,
+    ContextItem,
+    Log,
+    Prompt,
+    PromptVersion,
+    Run,
+    User,
+)
 
 
 async def write_log(
@@ -121,5 +130,71 @@ class PromptVersionRepository:
             select(PromptVersion)
             .where(PromptVersion.prompt_id == prompt_id)
             .order_by(PromptVersion.version)
+        )
+        return result.all()
+
+
+class RunRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(self, *, project_id: uuid.UUID) -> Run:
+        run = Run(project_id=project_id, status="queued")
+        self._session.add(run)
+        await self._session.flush()
+        return run
+
+    async def get(self, run_id: uuid.UUID) -> Run | None:
+        return await self._session.get(Run, run_id)
+
+    async def update_status(
+        self,
+        run_id: uuid.UUID,
+        *,
+        status: str,
+        current_agent: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        run = await self._session.get(Run, run_id)
+        if run is None:
+            return
+        run.status = status
+        if current_agent is not None:
+            run.current_agent = current_agent
+        if error is not None:
+            run.error = error
+
+
+class AgentRunRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(
+        self,
+        *,
+        run_id: uuid.UUID,
+        project_id: uuid.UUID,
+        agent: str,
+        status: str,
+        output: dict[str, Any] | None = None,
+        tokens: int = 0,
+        duration_ms: int | None = None,
+    ) -> AgentRun:
+        row = AgentRun(
+            run_id=run_id,
+            project_id=project_id,
+            agent=agent,
+            status=status,
+            output=output,
+            tokens=tokens,
+            duration_ms=duration_ms,
+        )
+        self._session.add(row)
+        await self._session.flush()
+        return row
+
+    async def list_for_run(self, run_id: uuid.UUID) -> Sequence[AgentRun]:
+        result = await self._session.scalars(
+            select(AgentRun).where(AgentRun.run_id == run_id).order_by(AgentRun.created_at)
         )
         return result.all()

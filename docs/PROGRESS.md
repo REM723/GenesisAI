@@ -4,8 +4,8 @@
 Re-read this at the start of every session/phase. Update it at the end of every phase.
 Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks execution.
 
-**Last updated:** 2026-07-26 (end of Phase 4)
-**Current position:** Phase 4 complete and reviewed. Phase 5 not yet started.
+**Last updated:** 2026-07-26 (end of Phase 5)
+**Current position:** Phase 5 complete and reviewed. Phase 6 not yet started.
 **GitHub:** https://github.com/REM723/GenesisAI — one commit pushed per phase (no co-author trailer).
 
 ---
@@ -31,8 +31,8 @@ Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks exe
 | 2 | LLM router | ✅ Done |
 | 3 | Context memory | ✅ Done |
 | 4 | Prompt optimizer + loop engine | ✅ Done |
-| 5 | Agent workflow (LangGraph) | ⏳ Next |
-| 6 | API surface | ⬜ Not started |
+| 5 | Agent workflow (LangGraph) | ✅ Done |
+| 6 | API surface | ⏳ Next |
 | 7 | Frontend | ⬜ Not started |
 | 8 | Export + doc generation | ⬜ Not started |
 | 9 | Hardening | ⬜ Not started |
@@ -147,22 +147,48 @@ p95 optimize latency ≪ 5s (heuristic, sub-ms); persistence test writes ordered
 `prompt_versions` against live Postgres. ruff/format/mypy strict clean (26 files). Full
 suite: 32 passed.
 
-## Phase 5 — Agent workflow (LangGraph) ⏳ (next)
+## Phase 5 — Agent workflow (LangGraph) ✅
 
-**Goal (SRS §6):** LangGraph state machine — PM → Architect → Backend → Frontend → QA →
-DevOps → Documentation, each with §6 inputs/outputs. Checkpoint after every step (resumable);
-per-agent timeouts; Code Reviewer gate after code gen (returns work once); stream progress
-over SSE at `GET /agents/runs/{run_id}/stream`. Uses the router (Phase 2), memory (Phase 3),
-and optimizer (Phase 4).
+`packages/agents/genesis_agents`: `agents.py` (7 AgentSpecs + `AgentRunner` protocol +
+`RouterAgentRunner`), `review.py` (Reviewer gate), `workflow.py` (LangGraph `StateGraph`,
+per-agent timeouts, conditional retry edges after backend/frontend, MemorySaver checkpointer).
+`apps/api`: `Run` model + `run_id` on `agent_runs` (migration `0003`), `RunRepository` +
+`AgentRunRepository`, `app/orchestrator.py` (drives the graph, persists steps, writes memory,
+publishes SSE, updates run status), `app/agents_api.py` (SSE `GET /agents/runs/{id}/stream`).
+Added `langgraph` dep (SRS-mandated).
 
-**Exit criteria:** full run PM → Architect → Backend → QA → Docs (AC-03); interrupted run
-resumes without repeating steps; timed-out agent leaves partial artifacts, run marked
-`timeout`.
+**Decisions:** graph is DB-free; the orchestrator supplies an `on_event` callback that owns all
+side effects (agent_runs, memory, Redis SSE, run status). Resume via LangGraph checkpointer
+(thread = run_id). Reviewer returns work once (MAX_ATTEMPTS=2). SSE over Redis pub/sub channel
+`run:{id}`. Runner injected → tests fake it (no live calls); router-backed runner is the real path.
 
-**Open items to resolve at planning:** the **runs/exports table gap** finally bites here —
-resumable runs need a run-level record (agent_runs is per-agent). Will propose a `runs` table
-(migration 0003) + wire router token/cost persistence. Also: real LLM calls are mocked in
-tests; MVP path targets AC-03's PM→Architect→Backend→QA→Docs (QA included).
+**Verified:** graph-level (offline) — AC-03 full run in order, resume skips completed steps,
+timeout raises + keeps partial, reviewer regenerates once. Orchestrator (live PG+Redis) —
+full run records all steps `succeeded` + run `succeeded`; timeout marks run `timeout` with
+partial `agent_runs` retained; SSE events (start/complete/run_*) published + consumed.
+Migrations 0001–0003 up/down/up clean (head `0003_runs`). ruff/format/mypy strict clean (31
+files). Full suite: 39 passed.
+
+**Resolved:** the long-standing runs-table gap (migration 0003: `runs` + `agent_runs.run_id`).
+**Still deferred:** `exports` table → Phase 8; router token/cost persistence (orchestrator
+writes `tokens=0` for now — wire real usage when the router-backed runner returns usage);
+cross-process resume needs a persistent LangGraph saver (MemorySaver is in-process; runs/
+agent_runs are the durable status of record).
+
+## Phase 6 — API surface ⏳ (next)
+
+**Goal (SRS §9):** implement every §9 endpoint with the conventions — bearer auth, `202 +
+run_id` for long ops, cursor pagination on lists, `422` field detail, Redis rate limiting per
+user + per IP. Endpoints: POST /projects, GET /projects/{id}, POST /prompts/generate, POST
+/agents/run, POST /code/review, POST /tests/generate, GET /exports/{id} (+ the SSE stream from
+Phase 5, + the /auth and /keys routes already built).
+
+**Exit criteria:** contract tests for every endpoint; OpenAPI matches §9; rate limiting returns
+`429` with `Retry-After`.
+
+**Open items at planning:** POST /agents/run wires the orchestrator as a background task (202 +
+run_id); cursor pagination format; rate-limit library vs. hand-rolled Redis token bucket
+(dep question).
 
 ---
 

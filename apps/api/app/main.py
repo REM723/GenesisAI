@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from redis.asyncio import Redis
 
-from app import api_keys, auth
+from app import agents_api, api_keys, auth
 from app.config import Settings, get_settings
 from app.db import make_engine, make_sessionmaker
 
@@ -31,6 +31,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(api_keys.router)
+    app.include_router(agents_api.router)
     return app
 
 
