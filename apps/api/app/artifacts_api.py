@@ -58,14 +58,3 @@ async def generate_tests(
         content=content,
     )
     return TestsGenerateOut(project_id=body.project_id, content=content)
-
-
-@router.get("/exports/{export_id}")
-async def download_export(
-    export_id: uuid.UUID,
-    _user: User = Depends(get_current_user),
-) -> None:
-    # Packaging is built in Phase 8; no export artifacts exist yet.
-    raise HTTPException(
-        status.HTTP_404_NOT_FOUND, "Export not available (packaging lands in Phase 8)"
-    )

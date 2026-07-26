@@ -4,8 +4,8 @@
 Re-read this at the start of every session/phase. Update it at the end of every phase.
 Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks execution.
 
-**Last updated:** 2026-07-26 (end of Phase 7)
-**Current position:** Phase 7 complete and reviewed. Phase 8 not yet started.
+**Last updated:** 2026-07-26 (end of Phase 8)
+**Current position:** Phase 8 complete and reviewed. Phase 9 not yet started.
 **GitHub:** https://github.com/REM723/GenesisAI — one commit pushed per phase (no co-author trailer).
 
 ---
@@ -34,8 +34,8 @@ Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks exe
 | 5 | Agent workflow (LangGraph) | ✅ Done |
 | 6 | API surface | ✅ Done |
 | 7 | Frontend | ✅ Done |
-| 8 | Export + doc generation | ⏳ Next |
-| 9 | Hardening | ⬜ Not started |
+| 8 | Export + doc generation | ✅ Done |
+| 9 | Hardening | ⏳ Next |
 
 ---
 
@@ -215,18 +215,40 @@ the §9 API; export download is a graceful "coming next release" state until Pha
 **Deferred:** live E2E walkthrough (needs a browser + provider key); export button real download
 (Phase 8); token auto-refresh on 401 (client currently uses the access token directly).
 
-## Phase 8 — Export + documentation generation ⏳ (next)
+## Phase 8 — Export + documentation generation ✅
 
-**Goal (NFR-09, AC-04/AC-06):** package a generated project (source, tests, Dockerfile, CI, README)
-into a downloadable archive with no GenesisAI runtime dependency; re-export without re-running
-agents; wire `GET /exports/{id}` to serve it and the frontend export button to download it.
+`apps/api`: `app/export_service.py` (`assemble_files` maps stored `generated_code`/`documents`
+to paths, synthesises default Dockerfile/CI/README only when absent; `build_archive` zips via
+stdlib), `app/exports_api.py` (`GET /exports/{project_id}` streams the archive). Frontend
+export button now downloads via `fetch` + blob (`api.exportProject`). Phase-6 export stub removed.
 
-**Exit criteria:** an exported project installs, builds, and passes its own generated tests in a
-clean container (AC-04, AC-06).
+**Decisions:** **zip-on-the-fly, no `exports` table, no new dependency** — resolves the long-
+deferred exports gap by not needing it. Export id = project id (documented §9 divergence).
+Re-export just re-zips stored artifacts (no agent run). Default infra assumes Python; the
+DevOps agent's own Dockerfile/CI override it.
 
-**Open items at planning:** where export artifacts live (an `exports` table + object storage vs.
-zip-on-the-fly from stored `generated_code`/`documents`); how AC-04/06 are tested in this
-environment (Docker is available; building a generated project in a container is the check).
+**Verified:** **AC-04 + AC-06 for real** — `test_exported_project_builds_and_passes_in_container`
+builds an exported project in `python:3.11-slim` and runs its own generated tests (exit 0);
+archive contains source, tests, Dockerfile, CI, README. NFR-09: no `genesis` reference in the
+archive. API: export streams a zip after artifacts exist, 404 on empty project, 401 unauth.
+ruff/mypy strict clean (38 files). Full suite: 53 passed (~60s incl. the container build).
+
+**Note:** `migrations/env.py` gained an explicit `connection.commit()` (asyncpg leaves DDL
+uncommitted otherwise) — beneficial, kept.
+
+## Phase 9 — Hardening ⏳ (next)
+
+**Goal (SRS §7/§8, AC-05/AC-07/AC-08):** load test to 1,000 concurrent users within the §8
+latency budgets; complete the audit-logging read surface; security pass confirming no key
+material reaches logs/responses/exports (AC-08); verify the same project runs on ≥3 providers
+(AC-05).
+
+**Exit criteria:** all acceptance criteria AC-01 through AC-08 verified with evidence.
+
+**Open items at planning:** load testing needs a live stack + a tool (locust/k6, a dep or
+external) and real capacity, hard to fully realise in this sandbox; AC-05 (≥3 providers) needs
+real provider keys or a recorded/mocked multi-provider harness. Expect to verify what is
+locally provable and mark the rest as needing a deployed environment + keys.
 
 ---
 

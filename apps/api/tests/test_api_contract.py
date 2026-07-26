@@ -90,7 +90,7 @@ async def test_openapi_covers_section9(client) -> None:
         "/agents/run",
         "/code/review",
         "/tests/generate",
-        "/exports/{export_id}",
+        "/exports/{project_id}",
         "/agents/runs/{run_id}/stream",
     ):
         assert path in paths, path

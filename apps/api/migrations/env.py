@@ -44,6 +44,7 @@ async def run_migrations_online() -> None:
     )
     async with engine.connect() as connection:
         await connection.run_sync(_do_run)
+        await connection.commit()  # ponytail: asyncpg leaves the DDL uncommitted without this
     await engine.dispose()
 
 

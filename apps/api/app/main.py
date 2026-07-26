@@ -6,7 +6,15 @@ from genesis_agents import RouterAgentRunner
 from genesis_router import Capabilities, Router
 from redis.asyncio import Redis
 
-from app import agents_api, api_keys, artifacts_api, auth, projects_api, prompts_api
+from app import (
+    agents_api,
+    api_keys,
+    artifacts_api,
+    auth,
+    exports_api,
+    projects_api,
+    prompts_api,
+)
 from app.config import Settings, get_settings
 from app.db import make_engine, make_sessionmaker
 
@@ -44,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(prompts_api.router)
     app.include_router(agents_api.router)
     app.include_router(artifacts_api.router)
+    app.include_router(exports_api.router)
     return app
 
 

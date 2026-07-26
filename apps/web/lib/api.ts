@@ -128,4 +128,16 @@ export const api = {
     }).then(parse<ApiKey>),
 
   streamUrl: (run_id: string) => `${BASE}/agents/runs/${run_id}/stream`,
+
+  exportProject: async (token: string, project_id: string): Promise<Blob> => {
+    const res = await fetch(`${BASE}/exports/${project_id}`, { headers: headers(token) });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(
+        res.status,
+        typeof body?.detail === "string" ? body.detail : `Export failed (${res.status})`,
+      );
+    }
+    return res.blob();
+  },
 };

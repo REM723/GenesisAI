@@ -43,7 +43,8 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   const [runBusy, setRunBusy] = useState(false);
   const { events, finished } = useRunStream(runId, token);
 
-  const [exportNote, setExportNote] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportErr, setExportErr] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -67,6 +68,25 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
       setError(e instanceof Error ? e.message : "Could not generate the prompt.");
     } finally {
       setPromptBusy(false);
+    }
+  }
+
+  async function exportZip() {
+    if (!token || !project) return;
+    setExportBusy(true);
+    setExportErr(null);
+    try {
+      const blob = await api.exportProject(token, params.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${project.name}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setExportErr(e instanceof Error ? e.message : "Export failed.");
+    } finally {
+      setExportBusy(false);
     }
   }
 
@@ -181,16 +201,10 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
       <Section title="Export">
         <Card className="flex items-center justify-between px-5 py-4">
           <p className="text-sm text-muted">
-            {exportNote ?? "Download the finished project as a standalone repository."}
+            {exportErr ?? "Download the finished project as a standalone repository."}
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              setExportNote("Packaging arrives in the next release. Your artifacts are saved.")
-            }
-          >
-            Export .zip
+          <Button variant="outline" size="sm" onClick={exportZip} disabled={exportBusy}>
+            {exportBusy ? <Spinner /> : "Export .zip"}
           </Button>
         </Card>
       </Section>
