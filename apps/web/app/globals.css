@@ -1,3 +1,98 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  /* Warm near-black ink on the palest bone. Restrained, editorial, not templated. */
+  --bg: 12 12 13;
+  --surface: 19 19 21;
+  --surface-2: 26 26 29;
+  --text: 237 236 233;
+  --muted: 156 155 150;
+  --faint: 110 110 108;
+  --line: 255 255 255; /* used at low alpha for hairlines */
+  --accent: 176 155 118; /* muted brass, used sparingly */
+  --accent-ink: 15 15 16;
+  --ok: 126 176 137;
+  --warn: 208 176 112;
+  --err: 209 122 116;
+
+  --radius: 12px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+* {
+  border-color: rgb(var(--line) / 0.08);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizelegibility;
+}
+
+body {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--text));
+  font-feature-settings: "cv11", "ss01";
+}
+
+/* A single, quiet focus treatment across the app. */
+:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgb(var(--bg)),
+    0 0 0 3.5px rgb(var(--accent) / 0.6);
+  border-radius: 6px;
+}
+
+::selection {
+  background: rgb(var(--accent) / 0.28);
+  color: rgb(var(--text));
+}
+
+/* Staggered entrance for lists. Decorative, never blocks interaction. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  opacity: 0;
+  animation: rise 460ms var(--ease-out) forwards;
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.settle {
+  animation: settle 420ms var(--ease-out) both;
+}
+
+.grain {
+  background-image: radial-gradient(rgb(var(--line) / 0.025) 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .settle {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

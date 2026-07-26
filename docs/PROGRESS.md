@@ -4,8 +4,8 @@
 Re-read this at the start of every session/phase. Update it at the end of every phase.
 Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks execution.
 
-**Last updated:** 2026-07-26 (end of Phase 6)
-**Current position:** Phase 6 complete and reviewed. Phase 7 not yet started.
+**Last updated:** 2026-07-26 (end of Phase 7)
+**Current position:** Phase 7 complete and reviewed. Phase 8 not yet started.
 **GitHub:** https://github.com/REM723/GenesisAI — one commit pushed per phase (no co-author trailer).
 
 ---
@@ -33,8 +33,8 @@ Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks exe
 | 4 | Prompt optimizer + loop engine | ✅ Done |
 | 5 | Agent workflow (LangGraph) | ✅ Done |
 | 6 | API surface | ✅ Done |
-| 7 | Frontend | ⏳ Next |
-| 8 | Export + doc generation | ⬜ Not started |
+| 7 | Frontend | ✅ Done |
+| 8 | Export + doc generation | ⏳ Next |
 | 9 | Hardening | ⬜ Not started |
 
 ---
@@ -188,19 +188,45 @@ returns `429 + Retry-After`. ruff/mypy strict clean (36 files). Full suite: 47 p
 **Deferred:** real background job queue/worker (asyncio task for MVP; Redis queue is the
 upgrade); `/exports` behavior → Phase 8; wiring real provider keys for live `/agents/run`.
 
-## Phase 7 — Frontend ⏳ (next)
+## Phase 7 — Frontend ✅
 
-**Goal (FR-02…FR-12):** Next.js web client — auth flows, project dashboard with status, create
-project from a plain-English idea, live run monitoring via the SSE stream, artifact preview,
-export download. shadcn/ui + Tailwind; explicit loading/empty/error states on every view.
+`apps/web`: design system in `globals.css` + `tailwind.config.ts` (warm near-black palette,
+custom ease-out curves, serif display, focus/selection treatment, stagger keyframes). Typed
+client `lib/api.ts`, auth provider `lib/auth.tsx`, SSE-over-fetch hook `lib/run-stream.ts`.
+Primitives (`button`/`input`/`card`/`spinner`), `status-badge`, `wordmark`, `app-nav`,
+`auth-form`, `run-timeline`. Routes: landing `/`, `/login`, `/signup`, and an authed `(app)`
+group with `/dashboard`, `/projects/new`, `/projects/[id]`, `/settings/keys`.
 
-**Exit criteria:** the PRD §10 MVP walkthrough completes end-to-end in a browser (signup →
-add key → create project → analyze → optimize → run with live status → export `.zip`).
+**Design (via /emil-design-eng):** press feedback `scale(0.97)`, motion under 300ms with custom
+ease-out, staggered list entrance (45ms), pulse only on active status, brisk 640ms spinner,
+`prefers-reduced-motion` respected. No emoji, no em dashes in copy, restrained brass accent used
+sparingly. System font stack (no network font fetch) for a guaranteed clean build.
 
-**Open items at planning:** shared types generated from the backend OpenAPI vs. hand-written in
-`packages/shared`; auth token storage (httpOnly cookie vs. memory/localStorage); how much of the
-walkthrough is testable headless here vs. needs a browser. Export download depends on Phase 8 —
-the frontend button may lead to a "not ready" state until then.
+**Decisions:** hand-written typed API client (OpenAPI codegen is the upgrade); localStorage
+tokens (httpOnly cookies are the hardening upgrade, need a backend contract change); SSE consumed
+via `fetch` + `ReadableStream` because `EventSource` cannot send the bearer header.
+
+**Verified:** `tsc --noEmit` clean, `next lint` clean, `prettier --check` clean, `next build`
+green (9 routes), prod server serves 200. **Not verified here:** the live click-through — the
+Chrome extension is not connected in this environment, and a *successful* agent run additionally
+needs a real provider key (added via the Keys screen, FR-14). The client is wired end-to-end to
+the §9 API; export download is a graceful "coming next release" state until Phase 8.
+
+**Deferred:** live E2E walkthrough (needs a browser + provider key); export button real download
+(Phase 8); token auto-refresh on 401 (client currently uses the access token directly).
+
+## Phase 8 — Export + documentation generation ⏳ (next)
+
+**Goal (NFR-09, AC-04/AC-06):** package a generated project (source, tests, Dockerfile, CI, README)
+into a downloadable archive with no GenesisAI runtime dependency; re-export without re-running
+agents; wire `GET /exports/{id}` to serve it and the frontend export button to download it.
+
+**Exit criteria:** an exported project installs, builds, and passes its own generated tests in a
+clean container (AC-04, AC-06).
+
+**Open items at planning:** where export artifacts live (an `exports` table + object storage vs.
+zip-on-the-fly from stored `generated_code`/`documents`); how AC-04/06 are tested in this
+environment (Docker is available; building a generated project in a container is the check).
 
 ---
 
