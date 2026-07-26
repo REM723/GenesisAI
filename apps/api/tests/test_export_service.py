@@ -85,12 +85,20 @@ def test_exported_project_builds_and_passes_in_container() -> None:  # AC-04, AC
         try:
             build = subprocess.run(
                 ["docker", "build", "-t", tag, d],
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=600,
             )
             assert build.returncode == 0, build.stdout + build.stderr  # installs + builds
             run = subprocess.run(
                 ["docker", "run", "--rm", tag],
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=300,
             )
             assert run.returncode == 0, run.stdout + run.stderr  # its generated tests pass
         finally:

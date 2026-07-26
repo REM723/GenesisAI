@@ -4,8 +4,8 @@
 Re-read this at the start of every session/phase. Update it at the end of every phase.
 Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks execution.
 
-**Last updated:** 2026-07-26 (end of Phase 8)
-**Current position:** Phase 8 complete and reviewed. Phase 9 not yet started.
+**Last updated:** 2026-07-26 (end of Phase 9 — all phases complete)
+**Current position:** Phase 9 complete and reviewed. Build plan finished.
 **GitHub:** https://github.com/REM723/GenesisAI — one commit pushed per phase (no co-author trailer).
 
 ---
@@ -35,7 +35,7 @@ Authoritative specs remain `docs/PRD.md` and `docs/SRS.md`; this only tracks exe
 | 6 | API surface | ✅ Done |
 | 7 | Frontend | ✅ Done |
 | 8 | Export + doc generation | ✅ Done |
-| 9 | Hardening | ⏳ Next |
+| 9 | Hardening | ✅ Done |
 
 ---
 
@@ -124,7 +124,7 @@ against live Postgres. Migrations 0001+0002 apply up/down/up on a fresh DB (head
 **Post-Phase-2 addition (user request):** added **Groq** provider (`GROQ_API_KEY`,
 `llama-3.3-70b-versatile`) as one `REGISTRY` row — an 8th provider, distinct from xAI's
 `grok`. Divergence from SRS §4's 7-provider list, noted here; no new dependency (Groq is
-OpenAI-compatible via the existing adapter).
+  OpenAI-compatible via the existing adapter).
 
 ## Phase 4 — Prompt optimizer + loop engine ✅
 
@@ -236,21 +236,35 @@ ruff/mypy strict clean (38 files). Full suite: 53 passed (~60s incl. the contain
 **Note:** `migrations/env.py` gained an explicit `connection.commit()` (asyncpg leaves DDL
 uncommitted otherwise) — beneficial, kept.
 
-## Phase 9 — Hardening ⏳ (next)
+## Phase 9 — Hardening ✅ (final)
 
-**Goal (SRS §7/§8, AC-05/AC-07/AC-08):** load test to 1,000 concurrent users within the §8
-latency budgets; complete the audit-logging read surface; security pass confirming no key
-material reaches logs/responses/exports (AC-08); verify the same project runs on ≥3 providers
-(AC-05).
+`apps/api`: `LogRepository` + `app/logs_api.py` (`GET /logs`, admin-only, cursor-paginated) —
+finally wires the Phase-1 `require_role("admin")` guard. Tests: `test_logs_api.py` (member 403,
+admin reads trail), `test_security_export.py` (AC-08 exports carry no key material),
+`test_latency.py` (§8 read p95 < 300ms). `packages/router/tests/test_multi_provider.py` (AC-05,
+3 providers). `scripts/loadtest.py` (asyncio+httpx load harness, no dep).
+`docs/architecture/ac-verification.md` maps every AC to its evidence.
 
-**Exit criteria:** all acceptance criteria AC-01 through AC-08 verified with evidence.
+**Decisions:** hand-rolled load harness (no locust/k6 dep); `GET /logs` admin-only; no schema
+change. AC-05 proven deterministically with fakes; AC-07 read budget proven, 1,000-user target
+documented as needing the deployed topology.
 
-**Open items at planning:** load testing needs a live stack + a tool (locust/k6, a dep or
-external) and real capacity, hard to fully realise in this sandbox; AC-05 (≥3 providers) needs
-real provider keys or a recorded/mocked multi-provider harness. Expect to verify what is
-locally provable and mark the rest as needing a deployed environment + keys.
+**Verified:** ruff/mypy strict clean (39 files). Full suite: **60 passed** (incl. the container
+AC-04 build). Honest finding: a single local dev worker at concurrency 200 gives p95 ~8.5s, which
+confirms AC-07's 1,000-user budget needs the §11 multi-worker + autoscaled deploy, not one process.
+
+**AC status:** AC-01, AC-02, AC-03, AC-04, AC-06, AC-08 fully verified with tests. AC-05 verified
+deterministically (live keys confirm end-to-end). AC-07 read budget met; concurrency target needs
+a deployed stack (harness provided). See `ac-verification.md`.
 
 ---
+
+## Build complete
+
+All 10 phases (0–9) done and pushed. 60 backend tests + web build green. Remaining real-world
+confirmations, all requiring a deployed environment or real provider keys (not fakeable honestly
+here): the live 1,000-user load test, a live ≥3-provider agent run, the browser walkthrough
+click-through, and a remote CI run. Everything locally provable is proven.
 
 ## How to run things
 

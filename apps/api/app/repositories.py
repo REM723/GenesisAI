@@ -38,6 +38,21 @@ async def write_log(
     session.add(Log(event=event, user_id=user_id, payload=payload))
 
 
+class LogRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list(
+        self, *, limit: int, cursor: tuple[datetime, uuid.UUID] | None = None
+    ) -> Sequence[Log]:
+        query = select(Log)
+        if cursor is not None:
+            ts, cid = cursor
+            query = query.where(or_(Log.created_at < ts, and_(Log.created_at == ts, Log.id < cid)))
+        query = query.order_by(Log.created_at.desc(), Log.id.desc()).limit(limit)
+        return (await self._session.scalars(query)).all()
+
+
 class UserRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session

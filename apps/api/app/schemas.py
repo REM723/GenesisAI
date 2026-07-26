@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -142,3 +143,18 @@ class TestsGenerateIn(BaseModel):
 class TestsGenerateOut(BaseModel):
     project_id: uuid.UUID
     content: str
+
+
+# ---- Audit logs (§7) ----
+class LogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    event: str
+    user_id: uuid.UUID | None = None
+    payload: dict[str, Any] | None = None
+    created_at: datetime
+
+
+class LogPage(BaseModel):
+    items: list[LogOut]
+    next_cursor: str | None = None

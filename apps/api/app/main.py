@@ -12,6 +12,7 @@ from app import (
     artifacts_api,
     auth,
     exports_api,
+    logs_api,
     projects_api,
     prompts_api,
 )
@@ -53,6 +54,7 @@ def create_app() -> FastAPI:
     app.include_router(agents_api.router)
     app.include_router(artifacts_api.router)
     app.include_router(exports_api.router)
+    app.include_router(logs_api.router)
     return app
 
 
